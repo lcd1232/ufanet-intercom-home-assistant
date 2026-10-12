@@ -17,6 +17,7 @@ from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from aiohttp import ClientError, ClientResponse, ClientSession
 
 from .const import UCAMS_BASE_URL, UCAMS_TOKEN_TTL, UFANET_BASE_URL
+from .hls import resolve_media_playlist_url
 
 CAMERA_FIELDS = [
     "number",
@@ -872,6 +873,27 @@ class UfanetApi:
         number = quote(camera_number, safe="")
         query = urlencode({"token": token, "tracks": f"v{int(stream_number)}a1"})
         return f"https://{domain}/{number}/index.m3u8?{query}"
+
+    async def async_get_live_media_playlist(
+        self,
+        camera_number: str,
+        stream_number: int = 1,
+        *,
+        force: bool = False,
+    ) -> tuple[str, str]:
+        """Return the live HLS media playlist text and its URL.
+
+        Follows the master playlist to its first variant. ``force`` refreshes
+        the cached camera token first.
+        """
+        if force:
+            await self.async_get_camera(camera_number, force=True)
+        url = await self.async_get_hls_url(camera_number, stream_number)
+        playlist = (await self._request_bytes(url)).decode()
+        if (media_url := resolve_media_playlist_url(playlist, url)) is not None:
+            url = media_url
+            playlist = (await self._request_bytes(url)).decode()
+        return playlist, url
 
     async def async_get_snapshot(self, camera_number: str, *, small: bool = False) -> bytes:
         """Return the current JPEG snapshot for a camera."""

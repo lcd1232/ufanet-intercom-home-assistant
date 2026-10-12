@@ -16,6 +16,7 @@ from .archive import UfanetArchiveController
 from .const import DOMAIN
 from .coordinator import UfanetCoordinator
 from .entity import device_info
+from .live_playlist import async_register_live_source, local_base_url
 from .private_entities import async_setup_private_camera_entities
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ class UfanetIntercomCamera(Camera):
         self.camera_number = str(skud["cctv_number"])
         self._attr_unique_id = f"{self.skud_id}_camera_{self.camera_number}"
         self._attr_device_info = device_info(skud)
+        self._live_path: str | None = None
 
     @property
     def available(self) -> bool:
@@ -85,10 +87,21 @@ class UfanetIntercomCamera(Camera):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Subscribe to coordinator updates."""
+        """Subscribe to coordinator updates and expose the live-edge playlist."""
         await super().async_added_to_hass()
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+        self._live_path, unregister = async_register_live_source(
+            self.hass, self._async_fetch_live_playlist
+        )
+        self.async_on_remove(unregister)
+
+    async def _async_fetch_live_playlist(self, force: bool) -> tuple[str, str]:
+        return await self.api.async_get_live_media_playlist(
+            self.camera_number,
+            stream_number=1,
+            force=force,
         )
 
     async def async_camera_image(
@@ -110,7 +123,13 @@ class UfanetIntercomCamera(Camera):
             return None
 
     async def stream_source(self) -> str | None:
-        """Return a fresh HLS live-stream URL usable by Home Assistant stream/ffmpeg."""
+        """Return a live HLS URL usable by Home Assistant stream/ffmpeg.
+
+        Prefer the local live-edge playlist so playback starts at the newest
+        segment instead of FFmpeg's default three segments back.
+        """
+        if self._live_path is not None:
+            return f"{local_base_url(self.hass)}{self._live_path}"
         try:
             return await self.api.async_get_hls_url(
                 self.camera_number,
