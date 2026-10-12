@@ -895,6 +895,10 @@ class UfanetApi:
             playlist = (await self._request_bytes(url)).decode()
         return playlist, url
 
+    async def async_fetch_playlist(self, url: str) -> str:
+        """Fetch an already resolved (tokenized) HLS playlist URL."""
+        return (await self._request_bytes(url)).decode()
+
     async def async_get_snapshot(self, camera_number: str, *, small: bool = False) -> bytes:
         """Return the current JPEG snapshot for a camera."""
         camera = await self.async_get_camera(camera_number)

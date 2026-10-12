@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from custom_components.ufanet_intercom.hls import (
+    parse_media_playlist,
     resolve_media_playlist_url,
     trim_to_live_edge,
 )
@@ -84,3 +85,31 @@ def test_trim_keeps_trailing_endlist() -> None:
     out = trim_to_live_edge(MEDIA + "#EXT-X-ENDLIST\n", MEDIA_URL, 1).splitlines()
 
     assert out[-1] == "#EXT-X-ENDLIST"
+
+
+def test_parse_numbers_segments_from_media_sequence() -> None:
+    playlist = parse_media_playlist(MEDIA, MEDIA_URL)
+
+    assert [s.sequence for s in playlist.segments] == [100, 101, 102]
+    assert playlist.newest_sequence == 102
+    assert playlist.segments[0].tags == ["#EXTINF:4.003,"]
+
+
+def test_render_maps_segment_uris() -> None:
+    playlist = parse_media_playlist(MEDIA, MEDIA_URL)
+
+    out = playlist.render(uri=lambda s: f"{s.sequence}.ts").splitlines()
+
+    assert "#EXT-X-MEDIA-SEQUENCE:100" in out
+    assert [line for line in out if not line.startswith("#")] == [
+        "100.ts",
+        "101.ts",
+        "102.ts",
+    ]
+
+
+def test_empty_playlist_has_no_newest_sequence() -> None:
+    playlist = parse_media_playlist("#EXTM3U\n#EXT-X-TARGETDURATION:4\n", MEDIA_URL)
+
+    assert playlist.newest_sequence is None
+    assert "#EXT-X-MEDIA-SEQUENCE:0" in playlist.render(1)

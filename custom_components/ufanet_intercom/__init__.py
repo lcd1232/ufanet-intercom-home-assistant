@@ -71,6 +71,11 @@ _KEY_HISTORY_CARD_MODULE_URL = f"{_KEY_HISTORY_CARD_URL}?v=0.32.0"
 _PRIVATE_CAMERA_CARD_PATH = _FRONTEND_DIR / "ufanet-private-camera-card.js"
 _PRIVATE_CAMERA_CARD_URL = "/ufanet_intercom/ufanet-private-camera-card.js"
 _PRIVATE_CAMERA_CARD_MODULE_URL = f"{_PRIVATE_CAMERA_CARD_URL}?v=0.32.0"
+_LIVE_CAMERA_CARD_PATH = _FRONTEND_DIR / "ufanet-live-camera-card.js"
+_LIVE_CAMERA_CARD_URL = "/ufanet_intercom/ufanet-live-camera-card.js"
+_LIVE_CAMERA_CARD_MODULE_URL = f"{_LIVE_CAMERA_CARD_URL}?v=0.32.0-live1"
+_HLS_JS_PATH = _FRONTEND_DIR / "hls.light.min.js"
+_HLS_JS_URL = "/ufanet_intercom/hls.light.min.js"
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -290,6 +295,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "Ufanet archive Lovelace card was not found at %s",
             _ARCHIVE_CARD_PATH,
         )
+
+    # Low-latency live camera card (independent of the archive card).
+    if await hass.async_add_executor_job(_path_is_file, _LIVE_CAMERA_CARD_PATH):
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    _LIVE_CAMERA_CARD_URL, str(_LIVE_CAMERA_CARD_PATH), False
+                ),
+                StaticPathConfig(_HLS_JS_URL, str(_HLS_JS_PATH), True),
+            ]
+        )
+        if not await _async_ensure_lovelace_module(
+            hass, _LIVE_CAMERA_CARD_MODULE_URL
+        ):
+            frontend.add_extra_js_url(hass, _LIVE_CAMERA_CARD_MODULE_URL)
 
     return True
 

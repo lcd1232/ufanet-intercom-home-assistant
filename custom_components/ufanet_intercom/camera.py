@@ -93,7 +93,10 @@ class UfanetIntercomCamera(Camera):
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
         self._live_path, unregister = async_register_live_source(
-            self.hass, self._async_fetch_live_playlist
+            self.hass,
+            self.entity_id,
+            self._async_fetch_live_playlist,
+            self.api.async_fetch_playlist,
         )
         self.async_on_remove(unregister)
 
